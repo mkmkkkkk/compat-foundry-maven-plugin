@@ -10,10 +10,16 @@ Findings are potential risks, not proven runtime defects. Only the trailing-slas
 rule has the existing runtime baseline/upgrade/repair evidence; the other rules'
 runtime status is unknown. No match is not a compatibility certificate.
 
-## 30-second setup with JitPack
+## 30-second setup with the built-in Maven repository
 
 Requires **JDK 17+ and Maven 3.6.3+**. No Python runtime or Python packages are required by the Maven plugin.
-Add JitPack as a plugin repository and use the tagged release:
+Add the repository hosted on this GitHub project's `maven-repo` branch:
+
+```xml
+<pluginRepositories><pluginRepository><id>compat-foundry</id><url>https://raw.githubusercontent.com/mkmkkkkk/compat-foundry-maven-plugin/maven-repo/</url></pluginRepository></pluginRepositories>
+```
+
+The JitPack setup remains available as a fallback if JitPack is working:
 
 ```xml
 <pluginRepositories><pluginRepository><id>jitpack.io</id><url>https://jitpack.io</url></pluginRepository></pluginRepositories>
@@ -27,13 +33,11 @@ no interpreter, subprocess or checkout path is needed. The catalog remains at
 
 Paste inside your project's `<build><plugins>`:
 
-Paste inside your project's `<build><plugins>`:
-
 ```xml
 <plugin>
-  <groupId>com.github.mkmkkkkk</groupId>
+  <groupId>dev.compatfoundry</groupId>
   <artifactId>compat-foundry-maven-plugin</artifactId>
-  <version>v0.2.0</version>
+  <version>0.2.0</version>
   <executions>
     <execution><goals><goal>scan</goal></goals></execution>
   </executions>
@@ -53,7 +57,7 @@ mvn -f examples/boot27/pom.xml verify
 For a scan without running the application's build/tests:
 
 ```sh
-mvn com.github.mkmkkkkk:compat-foundry-maven-plugin:v0.2.0:scan
+mvn dev.compatfoundry:compat-foundry-maven-plugin:0.2.0:scan
 ```
 
 Reports go under `${project.build.directory}/compat-foundry/`:

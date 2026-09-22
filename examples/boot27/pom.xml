@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>dev.compat</groupId><artifactId>boot27-shop</artifactId><version>0.1.0</version>
+  <properties>
+    <spring-boot.version>2.7.18</spring-boot.version><maven.compiler.release>17</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding><expectedSlashStatus>200</expectedSlashStatus>
+  </properties>
+  <dependencyManagement><dependencies><dependency>
+    <groupId>org.springframework.boot</groupId><artifactId>spring-boot-dependencies</artifactId>
+    <version>${spring-boot.version}</version><type>pom</type><scope>import</scope>
+  </dependency></dependencies></dependencyManagement>
+  <dependencies>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-actuator</artifactId></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-data-redis</artifactId></dependency>
+    <dependency><groupId>io.micrometer</groupId><artifactId>micrometer-registry-prometheus</artifactId></dependency>
+    <dependency><groupId>org.apache.httpcomponents</groupId><artifactId>httpclient</artifactId><version>4.5.14</version></dependency>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
+  </dependencies>
+  <build><directory>target/${spring-boot.version}</directory><plugins>
+    <plugin><groupId>dev.compatfoundry</groupId><artifactId>compat-foundry-maven-plugin</artifactId><version>0.2.0</version>
+      <executions><execution><goals><goal>scan</goal></goals></execution></executions>
+    </plugin>
+    <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId><version>3.11.0</version></plugin>
+    <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-surefire-plugin</artifactId><version>3.5.4</version>
+      <configuration><systemPropertyVariables><expectedSlashStatus>${expectedSlashStatus}</expectedSlashStatus></systemPropertyVariables></configuration>
+    </plugin>
+  </plugins></build>
+</project>

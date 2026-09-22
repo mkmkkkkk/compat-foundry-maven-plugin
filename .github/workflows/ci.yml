@@ -1,0 +1,29 @@
+name: plugin-and-scanner
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -r scanner/requirements.txt
+      - run: mvn -B -ntp -s scanner/scripts/public-maven-settings.xml install
+      - run: python -m unittest discover -s maven-plugin/tests -v
+      - run: PYTHONPATH=scanner python -m unittest discover -s scanner/tests -p test_scanner.py -v
+      - run: PYTHONPATH=scanner python -m unittest discover -s scanner/tests -p test_boundaries.py -v
+      - run: python maven-plugin/tests/verify_install.py --online
+      - run: python maven-plugin/tests/verify_no_python.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: plugin-receipts
+          path: evidence/plugin-0.2.0/

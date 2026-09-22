@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "compat-foundry": {
+      "command": "/absolute/path/to/python-with-scanner-dependencies",
+      "args": ["/absolute/path/to/compat-foundry/mcp/server.py"]
+    }
+  }
+}

@@ -1,0 +1,743 @@
+{
+  "schema_version": 1,
+  "catalog_version": "0.1.0",
+  "scope": "Spring Boot 2.7.x to 3.0.x; normalize earlier 2.x through 2.7 first. Later 3.x minors are not certified by this catalog.",
+  "drifts": [
+    {
+      "id": "mvc-trailing-slash",
+      "title": "Trailing slash routes stop matching",
+      "component": "Spring MVC / WebFlux",
+      "old_behavior": "An unpaired route also accepts its trailing-slash variant.",
+      "new_behavior": "The extra slash requires an explicit route.",
+      "severity": "high",
+      "business_impact": "Existing clients receive 404 on previously accepted URLs.",
+      "versions": {
+        "from_min": "2.7.0",
+        "from_max_exclusive": "2.8.0",
+        "to_min": "3.0.0",
+        "to_max_exclusive": "3.1.0"
+      },
+      "detection": {
+        "summary": "MVC/WebFlux dependency plus a literal mapping with an unpaired non-root path.",
+        "when": {
+          "all": [
+            {
+              "dependency": [
+                "org.springframework.boot:spring-boot-starter-web",
+                "org.springframework.boot:spring-boot-starter-webflux",
+                "org.springframework:spring-webmvc",
+                "org.springframework:spring-webflux"
+              ]
+            },
+            {
+              "unpaired_route": true
+            }
+          ]
+        },
+        "mitigated_by": {
+          "any": []
+        },
+        "confidence": "potential",
+        "limitations": "Only literal annotation paths are parsed. Class-level prefixes, constants, composed annotations, router functions, proxies and actual client URLs require review. An explicit pair restores both paths in MVC and WebFlux."
+      },
+      "fix": {
+        "language": "java",
+        "code": "@GetMapping({\"/api/greeting\", \"/api/greeting/\"})",
+        "application": "Add the slash variant to each flagged mapping. Preserve its existing method body, HTTP verb and authorization rules.",
+        "caveat": "Only literal annotation paths are parsed. Class-level prefixes, constants, composed annotations, router functions, proxies and actual client URLs require review. An explicit pair restores both paths in MVC and WebFlux.",
+        "verified_target": "3.0.13"
+      },
+      "sources": [
+        {
+          "url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.0-Migration-Guide#spring-mvc-and-webflux-url-matching-changes",
+          "level": "L3",
+          "publisher": "Spring",
+          "section": "Spring MVC and WebFlux URL Matching Changes"
+        }
+      ],
+      "verification": {
+        "official_review": "2026-09-15",
+        "runtime": "Boot 2.7.18: /api/greeting/ = 200; Boot 3.0.13 default: 404; exact catalog explicit-pair fix on the same URL: 200. Real Boot context / MockMvc; see evidence/boot27-maven.txt, evidence/boot30-contract-red.txt, evidence/boot30-restored-green.txt."
+      }
+    },
+    {
+      "id": "logging-date-format",
+      "title": "Default log timestamps change shape",
+      "component": "Logging / configuration properties",
+      "old_behavior": "Default timestamps separate date and time with a space.",
+      "new_behavior": "Default timestamps use T and append an offset.",
+      "severity": "medium",
+      "business_impact": "Fixed-format log ingestion or alert parsing can silently lose events.",
+      "versions": {
+        "from_min": "2.7.0",
+        "from_max_exclusive": "2.8.0",
+        "to_min": "3.0.0",
+        "to_max_exclusive": "3.1.0"
+      },
+      "detection": {
+        "summary": "Boot logging path with no local timestamp/layout override.",
+        "when": {
+          "all": [
+            {
+              "dependency": [
+                "org.springframework.boot:spring-boot-starter-logging",
+                "org.springframework.boot:spring-boot-starter-log4j2",
+                "org.springframework.boot:spring-boot-starter",
+                "org.springframework.boot:spring-boot-starter-web",
+                "org.springframework.boot:spring-boot-starter-webflux"
+              ]
+            },
+            {
+              "not": {
+                "property": {
+                  "key": "logging\\.pattern\\.(dateformat|console|file)",
+                  "value": ".*"
+                }
+              }
+            },
+            {
+              "not": {
+                "file_regex": {
+                  "glob": "*logback*.xml",
+                  "pattern": "\\S"
+                }
+              }
+            },
+            {
+              "not": {
+                "file_regex": {
+                  "glob": "*log4j2*.xml",
+                  "pattern": "\\S"
+                }
+              }
+            }
+          ]
+        },
+        "mitigated_by": {
+          "any": []
+        },
+        "confidence": "potential",
+        "limitations": "External LOG_DATEFORMAT_PATTERN, logging exclusions, JSON encoders and external logging files are unknown; inspect the real collector contract."
+      },
+      "fix": {
+        "language": "properties",
+        "code": "logging.pattern.dateformat=yyyy-MM-dd HH:mm:ss.SSS",
+        "application": "Set in the deployed application configuration if downstream parsing needs the old timestamp.",
+        "caveat": "External LOG_DATEFORMAT_PATTERN, logging exclusions, JSON encoders and external logging files are unknown; inspect the real collector contract.",
+        "verified_target": "3.0.13"
+      },
+      "sources": [
+        {
+          "url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.0-Migration-Guide#logging-date-format",
+          "level": "L3",
+          "publisher": "Spring",
+          "section": "Logging Date Format"
+        }
+      ],
+      "verification": {
+        "official_review": "2026-09-15",
+        "runtime": "unknown"
+      }
+    },
+    {
+      "id": "autoconfiguration-imports",
+      "title": "Legacy auto-configuration registration is ignored",
+      "component": "Auto-configuration",
+      "old_behavior": "spring.factories can register auto-configurations.",
+      "new_behavior": "Auto-configuration discovery uses the imports resource.",
+      "severity": "high",
+      "business_impact": "An optional integration can disappear while the rest of the application starts.",
+      "versions": {
+        "from_min": "2.7.0",
+        "from_max_exclusive": "2.8.0",
+        "to_min": "3.0.0",
+        "to_max_exclusive": "3.1.0"
+      },
+      "detection": {
+        "summary": "A local spring.factories declares EnableAutoConfiguration entries.",
+        "when": {
+          "file_regex": {
+            "glob": "*spring.factories",
+            "pattern": "(?m)^\\s*org\\.springframework\\.boot\\.autoconfigure\\.EnableAutoConfiguration\\s*="
+          }
+        },
+        "mitigated_by": {
+          "any": []
+        },
+        "confidence": "potential",
+        "limitations": "Optional auto-configurations can vanish silently; required missing beans may instead fail startup. Dependency JAR resources are not scanned. Existing imports must be compared class by class; this rule deliberately remains a review finding."
+      },
+      "fix": {
+        "language": "text",
+        "code": "# src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports\ncom.example.OptionalIntegrationAutoConfiguration",
+        "application": "Create that resource and list every legacy auto-configuration class, one fully qualified name per line; replace the example with your actual classes. Keep dual registration for 2.7 compatibility.",
+        "caveat": "Optional auto-configurations can vanish silently; required missing beans may instead fail startup. Dependency JAR resources are not scanned. Existing imports must be compared class by class; this rule deliberately remains a review finding.",
+        "verified_target": "3.0.13"
+      },
+      "sources": [
+        {
+          "url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.0-Migration-Guide#auto-configuration-files",
+          "level": "L3",
+          "publisher": "Spring",
+          "section": "Auto-configuration Files"
+        }
+      ],
+      "verification": {
+        "official_review": "2026-09-15",
+        "runtime": "unknown"
+      }
+    },
+    {
+      "id": "resttemplate-httpclient4-fallback",
+      "title": "RestTemplate loses Apache HttpClient 4 selection",
+      "component": "Spring Web / HTTP client",
+      "old_behavior": "Boot can select Apache HttpClient 4 automatically.",
+      "new_behavior": "That dependency no longer selects an Apache client.",
+      "severity": "high",
+      "business_impact": "Automatic client fallback can change connection pooling and request behavior.",
+      "versions": {
+        "from_min": "2.7.0",
+        "from_max_exclusive": "2.8.0",
+        "to_min": "3.0.0",
+        "to_max_exclusive": "3.1.0"
+      },
+      "detection": {
+        "summary": "HttpClient 4 dependency plus RestTemplateBuilder, without HttpClient 5.",
+        "when": {
+          "all": [
+            {
+              "dependency": [
+                "org.apache.httpcomponents:httpclient"
+              ]
+            },
+            {
+              "source_regex": "\\bRestTemplateBuilder\\b"
+            },
+            {
+              "not": {
+                "dependency": [
+                  "org.apache.httpcomponents.client5:httpclient5"
+                ]
+              }
+            }
+          ]
+        },
+        "mitigated_by": {
+          "any": []
+        },
+        "confidence": "potential",
+        "limitations": "The fix restores the client family, not byte-for-byte HttpClient 4 semantics. Custom request factories can invalidate this signature. Direct HttpClient 4 factory constructors are compilation migrations and are not this silent case."
+      },
+      "fix": {
+        "language": "xml",
+        "code": "<dependency>\n  <groupId>org.apache.httpcomponents.client5</groupId>\n  <artifactId>httpclient5</artifactId>\n</dependency>",
+        "application": "Add the Boot-managed HttpClient 5 dependency to restore Apache-backed auto-selection. Port explicit HttpClient 4 timeouts, TLS and pool customizations separately.",
+        "caveat": "The fix restores the client family, not byte-for-byte HttpClient 4 semantics. Custom request factories can invalidate this signature. Direct HttpClient 4 factory constructors are compilation migrations and are not this silent case.",
+        "verified_target": "3.0.13"
+      },
+      "sources": [
+        {
+          "url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.0-Migration-Guide#apache-httpclient-in-resttemplate",
+          "level": "L3",
+          "publisher": "Spring",
+          "section": "Apache HttpClient in RestTemplate"
+        }
+      ],
+      "verification": {
+        "official_review": "2026-09-15",
+        "runtime": "unknown"
+      }
+    },
+    {
+      "id": "actuator-jmx-exposure",
+      "title": "Default JMX endpoint exposure shrinks",
+      "component": "Actuator / JMX",
+      "old_behavior": "JMX exposes all enabled actuator endpoints by default.",
+      "new_behavior": "JMX exposes only health by default.",
+      "severity": "medium",
+      "business_impact": "JMX-based monitoring loses metrics or diagnostic operations.",
+      "versions": {
+        "from_min": "2.7.0",
+        "from_max_exclusive": "2.8.0",
+        "to_min": "3.0.0",
+        "to_max_exclusive": "3.1.0"
+      },
+      "detection": {
+        "summary": "Actuator and explicit JMX enablement without an exposure override.",
+        "when": {
+          "all": [
+            {
+              "dependency": [
+                "org.springframework.boot:spring-boot-starter-actuator",
+                "org.springframework.boot:spring-boot-actuator-autoconfigure"
+              ]
+            },
+            {
+              "property": {
+                "key": "spring\\.jmx\\.enabled",
+                "value": "true"
+              }
+            },
+            {
+              "not": {
+                "property": {
+                  "key": "management\\.endpoints\\.jmx\\.exposure\\.(include|exclude)",
+                  "value": ".*"
+                }
+              }
+            }
+          ]
+        },
+        "mitigated_by": {
+          "any": []
+        },
+        "confidence": "potential",
+        "limitations": "This is JMX exposure, not HTTP exposure. Restoring all JMX endpoints can reveal sensitive operations; an explicit allowlist is preferable where feasible."
+      },
+      "fix": {
+        "language": "properties",
+        "code": "management.endpoints.jmx.exposure.include=*",
+        "application": "Set this to restore the old JMX exposure set, or enumerate the endpoint IDs used by your monitoring.",
+        "caveat": "This is JMX exposure, not HTTP exposure. Restoring all JMX endpoints can reveal sensitive operations; an explicit allowlist is preferable where feasible.",
+        "verified_target": "3.0.13"
+      },
+      "sources": [
+        {
+          "url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.0-Migration-Guide#jmx-endpoint-exposure",
+          "level": "L3",
+          "publisher": "Spring",
+          "section": "JMX Endpoint Exposure"
+        }
+      ],
+      "verification": {
+        "official_review": "2026-09-15",
+        "runtime": "unknown"
+      }
+    },
+    {
+      "id": "actuator-isolated-mapper",
+      "title": "Actuator stops using application Jackson customization",
+      "component": "Actuator / Jackson",
+      "old_behavior": "Actuator JSON can use the application ObjectMapper.",
+      "new_behavior": "Built-in endpoints use an isolated mapper.",
+      "severity": "medium",
+      "business_impact": "Consumers expecting custom JSON names or formats receive a different contract.",
+      "versions": {
+        "from_min": "2.7.0",
+        "from_max_exclusive": "2.8.0",
+        "to_min": "3.0.0",
+        "to_max_exclusive": "3.1.0"
+      },
+      "detection": {
+        "summary": "Actuator with an ObjectMapper/customizer or spring.jackson configuration.",
+        "when": {
+          "all": [
+            {
+              "dependency": [
+                "org.springframework.boot:spring-boot-starter-actuator",
+                "org.springframework.boot:spring-boot-actuator-autoconfigure"
+              ]
+            },
+            {
+              "any": [
+                {
+                  "source_regex": "\\b(Jackson2ObjectMapperBuilderCustomizer|ObjectMapper)\\b"
+                },
+                {
+                  "property": {
+                    "key": "spring\\.jackson\\..+",
+                    "value": ".*"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "mitigated_by": {
+          "property": {
+            "key": "management\\.endpoints\\.jackson\\.isolated-object-mapper",
+            "value": "false"
+          }
+        },
+        "confidence": "potential",
+        "limitations": "A mapper reference may be unrelated to Boot customization; determine which endpoint payload fields are actually affected. This is not a general Jackson default-change claim."
+      },
+      "fix": {
+        "language": "properties",
+        "code": "management.endpoints.jackson.isolated-object-mapper=false",
+        "application": "Set this to let built-in actuator JSON use the application mapper again.",
+        "caveat": "A mapper reference may be unrelated to Boot customization; determine which endpoint payload fields are actually affected. This is not a general Jackson default-change claim.",
+        "verified_target": "3.0.13"
+      },
+      "sources": [
+        {
+          "url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.0-Migration-Guide#actuator-json",
+          "level": "L3",
+          "publisher": "Spring",
+          "section": "Actuator JSON"
+        }
+      ],
+      "verification": {
+        "official_review": "2026-09-15",
+        "runtime": "unknown"
+      }
+    },
+    {
+      "id": "redis-property-prefix",
+      "title": "Redis configuration under the old prefix is ignored",
+      "component": "Spring Data Redis / configuration properties",
+      "old_behavior": "Redis settings bind under spring.redis.",
+      "new_behavior": "Redis settings bind under spring.data.redis.",
+      "severity": "high",
+      "business_impact": "A reachable default Redis can receive reads or writes in the wrong logical database.",
+      "versions": {
+        "from_min": "2.7.0",
+        "from_max_exclusive": "2.8.0",
+        "to_min": "3.0.0",
+        "to_max_exclusive": "3.1.0"
+      },
+      "detection": {
+        "summary": "Redis dependency and at least one old-prefix property in application configuration.",
+        "when": {
+          "all": [
+            {
+              "dependency": [
+                "org.springframework.boot:spring-boot-starter-data-redis",
+                "org.springframework.boot:spring-boot-starter-data-redis-reactive",
+                "org.springframework.data:spring-data-redis"
+              ]
+            },
+            {
+              "property": {
+                "key": "spring\\.redis\\..+",
+                "value": ".*"
+              }
+            }
+          ]
+        },
+        "mitigated_by": {
+          "any": []
+        },
+        "confidence": "potential",
+        "limitations": "If fallback Redis is unreachable, failure occurs at first connection instead. Values here are example values, never inferred production values. Custom RedisConnectionFactory beans or the temporary properties migrator can override binding."
+      },
+      "fix": {
+        "language": "properties",
+        "code": "# Preserve each original value while changing its key prefix.\n# Example: spring.redis.database=4 becomes:\nspring.data.redis.database=4",
+        "application": "Rename all spring.redis.* keys to spring.data.redis.* in every deployed property source; retain each original value.",
+        "caveat": "If fallback Redis is unreachable, failure occurs at first connection instead. Values here are example values, never inferred production values. Custom RedisConnectionFactory beans or the temporary properties migrator can override binding.",
+        "verified_target": "3.0.13"
+      },
+      "sources": [
+        {
+          "url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.0-Migration-Guide#redis-properties",
+          "level": "L3",
+          "publisher": "Spring",
+          "section": "Redis Properties"
+        }
+      ],
+      "verification": {
+        "official_review": "2026-09-15",
+        "runtime": "unknown"
+      }
+    },
+    {
+      "id": "metrics-export-prefix",
+      "title": "Metrics exporter configuration moves",
+      "component": "Actuator / Micrometer configuration",
+      "old_behavior": "Exporter settings use management.metrics.export.<product>.",
+      "new_behavior": "Exporter settings use management.<product>.metrics.export.",
+      "severity": "medium",
+      "business_impact": "An ignored enablement or sampling setting changes monitoring behavior.",
+      "versions": {
+        "from_min": "2.7.0",
+        "from_max_exclusive": "2.8.0",
+        "to_min": "3.0.0",
+        "to_max_exclusive": "3.1.0"
+      },
+      "detection": {
+        "summary": "An old metrics exporter property is present with Actuator.",
+        "when": {
+          "all": [
+            {
+              "dependency": [
+                "org.springframework.boot:spring-boot-starter-actuator",
+                "org.springframework.boot:spring-boot-actuator-autoconfigure"
+              ]
+            },
+            {
+              "property": {
+                "key": "management\\.metrics\\.export\\.[^.]+\\..+",
+                "value": ".*"
+              }
+            }
+          ]
+        },
+        "mitigated_by": {
+          "any": []
+        },
+        "confidence": "potential",
+        "limitations": "This is a potential finding until the corresponding registry is known to be installed. New-prefix duplicates and properties-migrator behavior require review."
+      },
+      "fix": {
+        "language": "properties",
+        "code": "# Preserve the original value; this example restores disabled export.\nmanagement.prometheus.metrics.export.enabled=false",
+        "application": "Rewrite management.metrics.export.<product>.<suffix> as management.<product>.metrics.export.<suffix> for the exporter you actually use.",
+        "caveat": "This is a potential finding until the corresponding registry is known to be installed. New-prefix duplicates and properties-migrator behavior require review.",
+        "verified_target": "3.0.13"
+      },
+      "sources": [
+        {
+          "url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.0-Migration-Guide#actuator-metrics-export-properties",
+          "level": "L3",
+          "publisher": "Spring",
+          "section": "Actuator Metrics Export Properties"
+        }
+      ],
+      "verification": {
+        "official_review": "2026-09-15",
+        "runtime": "unknown"
+      }
+    },
+    {
+      "id": "security-context-save",
+      "title": "Custom authentication no longer persists automatically",
+      "component": "Spring Security / servlet session",
+      "old_behavior": "The default persistence filter saves custom context changes between requests.",
+      "new_behavior": "The default holder filter reads context; custom authentication must save it explicitly.",
+      "severity": "high",
+      "business_impact": "A custom login succeeds for one request but the following request is anonymous.",
+      "versions": {
+        "from_min": "2.7.0",
+        "from_max_exclusive": "2.8.0",
+        "to_min": "3.0.0",
+        "to_max_exclusive": "3.1.0"
+      },
+      "detection": {
+        "summary": "Servlet Security plus custom SecurityContextHolder writes.",
+        "when": {
+          "all": [
+            {
+              "dependency": [
+                "org.springframework.boot:spring-boot-starter-security",
+                "org.springframework.security:spring-security-web"
+              ]
+            },
+            {
+              "source_regex": "SecurityContextHolder\\s*\\.\\s*(?:setContext\\s*\\(|getContext\\s*\\(\\s*\\)\\s*\\.\\s*setAuthentication\\s*\\()"
+            }
+          ]
+        },
+        "mitigated_by": {
+          "source_regex": "\\.requireExplicitSave\\s*\\(\\s*false\\s*\\)"
+        },
+        "confidence": "potential",
+        "limitations": "Do not change a deliberately stateless API. A same-file saveContext call is not proof of correct control flow; review every custom authentication path and chain."
+      },
+      "fix": {
+        "language": "java",
+        "code": "// Merge into the existing HttpSecurity chain before build().\nhttp.securityContext(context -> context.requireExplicitSave(false));",
+        "application": "Use the migration opt-out in the existing SecurityFilterChain, or explicitly save the context through the configured SecurityContextRepository after authenticating.",
+        "caveat": "Do not change a deliberately stateless API. A same-file saveContext call is not proof of correct control flow; review every custom authentication path and chain.",
+        "verified_target": "3.0.13"
+      },
+      "sources": [
+        {
+          "url": "https://docs.spring.io/spring-security/reference/6.5/migration/servlet/session-management.html#_require_explicit_saving_of_securitycontextrepository",
+          "level": "L3",
+          "publisher": "Spring",
+          "section": "Require Explicit Saving of SecurityContextRepository"
+        }
+      ],
+      "verification": {
+        "official_review": "2026-09-15",
+        "runtime": "unknown"
+      }
+    },
+    {
+      "id": "security-request-cache",
+      "title": "Saved request lookup requires a continue parameter",
+      "component": "Spring Security / request cache",
+      "old_behavior": "Default saved-request matching may consult the session on every request.",
+      "new_behavior": "Default matching is gated by the continue query parameter.",
+      "severity": "medium",
+      "business_impact": "Custom post-login navigation without that parameter can lose saved request restoration.",
+      "versions": {
+        "from_min": "2.7.0",
+        "from_max_exclusive": "2.8.0",
+        "to_min": "3.0.0",
+        "to_max_exclusive": "3.1.0"
+      },
+      "detection": {
+        "summary": "Servlet Security form login or request-cache customization without NullRequestCache.",
+        "when": {
+          "all": [
+            {
+              "dependency": [
+                "org.springframework.boot:spring-boot-starter-security",
+                "org.springframework.security:spring-security-web"
+              ]
+            },
+            {
+              "source_regex": "\\.(?:formLogin|requestCache)\\s*\\("
+            },
+            {
+              "not": {
+                "source_regex": "\\bNullRequestCache\\b"
+              }
+            }
+          ]
+        },
+        "mitigated_by": {
+          "source_regex": "\\.setMatchingRequestParameterName\\s*\\(\\s*null\\s*\\)"
+        },
+        "confidence": "potential",
+        "limitations": "Standard saved-request login redirects normally include continue, so formLogin alone indicates review risk, not a broken login. The opt-out increases session reads."
+      },
+      "fix": {
+        "language": "java",
+        "code": "// Merge into the existing HttpSecurity chain before build().\norg.springframework.security.web.savedrequest.HttpSessionRequestCache legacyCache =\n    new org.springframework.security.web.savedrequest.HttpSessionRequestCache();\nlegacyCache.setMatchingRequestParameterName(null);\nhttp.requestCache(cache -> cache.requestCache(legacyCache));",
+        "application": "Install this request cache in the existing chain when a custom navigation contract cannot carry continue.",
+        "caveat": "Standard saved-request login redirects normally include continue, so formLogin alone indicates review risk, not a broken login. The opt-out increases session reads.",
+        "verified_target": "3.0.13"
+      },
+      "sources": [
+        {
+          "url": "https://docs.spring.io/spring-security/reference/6.5/migration/servlet/session-management.html",
+          "level": "L3",
+          "publisher": "Spring",
+          "section": "Optimize Querying of RequestCache"
+        }
+      ],
+      "verification": {
+        "official_review": "2026-09-15",
+        "runtime": "unknown"
+      }
+    },
+    {
+      "id": "hibernate-implicit-join-select",
+      "title": "An implicit HQL join changes result shape",
+      "component": "Hibernate / HQL",
+      "old_behavior": "An HQL join without select returns object-array tuples of joined entities.",
+      "new_behavior": "The same implicit select returns the root entity.",
+      "severity": "high",
+      "business_impact": "Untyped result processing or serialization can silently lose joined columns.",
+      "versions": {
+        "from_min": "2.7.0",
+        "from_max_exclusive": "2.8.0",
+        "to_min": "3.0.0",
+        "to_max_exclusive": "3.1.0"
+      },
+      "detection": {
+        "summary": "Hibernate dependency and a literal HQL from/join query without an explicit select.",
+        "when": {
+          "all": [
+            {
+              "dependency": [
+                "org.springframework.boot:spring-boot-starter-data-jpa",
+                "org.hibernate:hibernate-core",
+                "org.hibernate.orm:hibernate-core"
+              ]
+            },
+            {
+              "source_regex": "[\"\\']\\s*from\\s+\\w+\\s+\\w+\\s+(?:(?:left|right|inner)\\s+)?join\\s+(?!fetch\\b)\\w+\\.\\w+"
+            }
+          ]
+        },
+        "mitigated_by": {
+          "any": []
+        },
+        "confidence": "potential",
+        "limitations": "Criteria, concatenated query strings and runtime-built HQL are not parsed. Typed consumers can fail at runtime instead of silently changing output. Business impact depends on result consumption."
+      },
+      "fix": {
+        "language": "hql",
+        "code": "select c, o from Customer c join c.orders o",
+        "application": "Explicitly select the root and each joined alias in the legacy tuple order; substitute the actual entities and aliases from your query.",
+        "caveat": "Criteria, concatenated query strings and runtime-built HQL are not parsed. Typed consumers can fail at runtime instead of silently changing output. Business impact depends on result consumption.",
+        "verified_target": "3.0.13"
+      },
+      "sources": [
+        {
+          "url": "https://docs.hibernate.org/orm/6.0/migration-guide/#query-sqm",
+          "level": "L3",
+          "publisher": "Hibernate",
+          "section": "SQM (HQL/Criteria) / Result rows"
+        }
+      ],
+      "verification": {
+        "official_review": "2026-09-15",
+        "runtime": "unknown"
+      }
+    },
+    {
+      "id": "hibernate-native-criteria-copy",
+      "title": "Native Hibernate no longer copies criteria by default",
+      "component": "Hibernate / Criteria",
+      "old_behavior": "Mutating criteria after createQuery does not change an already created Query.",
+      "new_behavior": "Native bootstrap defaults to sharing the criteria tree; later mutations can affect Query.",
+      "severity": "high",
+      "business_impact": "Reused criteria can change a query predicate and therefore the selected business records.",
+      "versions": {
+        "from_min": "2.7.0",
+        "from_max_exclusive": "2.8.0",
+        "to_min": "3.0.0",
+        "to_max_exclusive": "3.1.0"
+      },
+      "detection": {
+        "summary": "Criteria usage plus native buildSessionFactory bootstrap, not merely an EntityManager.",
+        "when": {
+          "all": [
+            {
+              "dependency": [
+                "org.springframework.boot:spring-boot-starter-data-jpa",
+                "org.hibernate:hibernate-core",
+                "org.hibernate.orm:hibernate-core"
+              ]
+            },
+            {
+              "source_regex": "\\bCriteria(?:Query|Update|Delete)\\b"
+            },
+            {
+              "source_regex": "\\.buildSessionFactory\\s*\\("
+            }
+          ]
+        },
+        "mitigated_by": {
+          "any": [
+            {
+              "source_regex": "\\.setProperty\\s*\\(\\s*\"hibernate\\.criteria\\.copy_tree\"\\s*,\\s*\"true\"\\s*\\)"
+            },
+            {
+              "property": {
+                "key": "spring\\.jpa\\.properties\\.hibernate\\.criteria\\.copy_tree",
+                "value": "true"
+              }
+            }
+          ]
+        },
+        "confidence": "potential",
+        "limitations": "Ordinary Boot JPA bootstrap already enables copying and is excluded. Static matching cannot prove that criteria are mutated after Query creation; inspect reuse order. The property can also be set explicitly false under JPA, a case this native-only detector does not cover."
+      },
+      "fix": {
+        "language": "java",
+        "code": "// Apply to the native org.hibernate.cfg.Configuration before buildSessionFactory().\nconfiguration.setProperty(\"hibernate.criteria.copy_tree\", \"true\");",
+        "application": "Enable copying on the native Hibernate bootstrap configuration, or complete all mutations before creating each Query.",
+        "caveat": "Ordinary Boot JPA bootstrap already enables copying and is excluded. Static matching cannot prove that criteria are mutated after Query creation; inspect reuse order. The property can also be set explicitly false under JPA, a case this native-only detector does not cover.",
+        "verified_target": "3.0.13"
+      },
+      "sources": [
+        {
+          "url": "https://docs.hibernate.org/orm/6.0/migration-guide/#query-sqm",
+          "level": "L3",
+          "publisher": "Hibernate",
+          "section": "Hibernate Criteria behavior change"
+        }
+      ],
+      "verification": {
+        "official_review": "2026-09-15",
+        "runtime": "unknown"
+      }
+    }
+  ]
+}

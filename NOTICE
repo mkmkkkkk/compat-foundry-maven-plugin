@@ -1,0 +1,9 @@
+Compat Foundry
+Copyright 2026 Compat Foundry contributors
+
+New plugin, MCP adapter and repository distribution materials are licensed under
+the Apache License, Version 2.0 (LICENSE).
+
+The bundled existing scanner and catalog retain their original MIT license and
+copyright notice in scanner/LICENSE (also included as compat-runtime/LICENSE
+inside the plugin JAR). No third-party Python dependencies are bundled in the JAR.

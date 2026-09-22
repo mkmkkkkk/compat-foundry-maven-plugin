@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <plugins>
+    <plugin>
+      <name>Compat Foundry Maven Plugin</name>
+      <prefix>compat-foundry</prefix>
+      <artifactId>compat-foundry-maven-plugin</artifactId>
+    </plugin>
+  </plugins>
+</metadata>
